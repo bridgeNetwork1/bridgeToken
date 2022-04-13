@@ -1,7 +1,5 @@
 // SPDX-License-Identifier: MIT
 // OpenZeppelin Contracts (last updated v4.5.0) (token/ERC20/ERC20.sol)
-
-
 pragma solidity ^0.8.0;
 
 /**
@@ -97,7 +95,6 @@ interface IERC20Metadata is IERC20 {
      */
     function decimals() external view returns (uint8);
 }
-pragma solidity ^0.8.0;
 
 /**
  * @dev Provides information about the current execution context, including the
@@ -119,7 +116,6 @@ abstract contract Context {
     }
 }
 
-pragma solidity >=0.6.0;
 
 /**
  * @dev Contract module which provides a basic access control mechanism, where
@@ -135,7 +131,7 @@ pragma solidity >=0.6.0;
  */
 abstract contract Ownable is Context {
     address private _owner;
-
+    address private _pendingOwner;
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
 
     /**
@@ -154,6 +150,9 @@ abstract contract Ownable is Context {
         return _owner;
     }
 
+   function oendingOwner() public view virtual returns (address) {
+        return _pendingOwner;
+    }
     /**
      * @dev Throws if called by any account other than the owner.
      */
@@ -169,7 +168,7 @@ abstract contract Ownable is Context {
      * NOTE: Renouncing ownership will leave the contract without an owner,
      * thereby removing any functionality that is only available to the owner.
      */
-    function renounceOwnership() public virtual onlyOwner {
+    function renounceOwnership() external virtual onlyOwner {
         emit OwnershipTransferred(_owner, address(0));
         _owner = address(0);
     }
@@ -178,10 +177,16 @@ abstract contract Ownable is Context {
      * @dev Transfers ownership of the contract to a new account (`newOwner`).
      * Can only be called by the current owner.
      */
-    function transferOwnership(address newOwner) public virtual onlyOwner {
+    function transferOwnership(address newOwner) external virtual onlyOwner {
         require(newOwner != address(0), "Ownable: new owner is the zero address");
-        emit OwnershipTransferred(_owner, newOwner);
-        _owner = newOwner;
+        _pendingOwner = newOwner;
+    }
+    // accept ownership
+     function updateOwner() external   {
+        require( _msgSender() == _pendingOwner, "Not pendind owner");
+        require( _msgSender() != address(0), "Ownable: new owner is the zero address");
+        emit OwnershipTransferred(_owner, _pendingOwner);
+        _owner = _pendingOwner;
     }
 }
 
@@ -215,16 +220,21 @@ contract bridgeToken is Context, IERC20, IERC20Metadata , Ownable {
     mapping(address => bool) public blacklisted;
     mapping(address => bool) public isAdmin;
     mapping(address => mapping(address => uint256)) private _allowances;
-
+    
     uint256 private _totalSupply;
 
     string private _name;
     string private _symbol;
-
+    bool blackListEnabled = true;
     modifier onlyAdmin() {
         require( isAdmin[_msgSender()] || owner() == _msgSender() , " caller is not authorised");
         _;
     }
+    event blacklistDisable(address indexed _by);
+    event adminAdded(address indexed _by, address indexed addedAdmin);
+    event adminRemoved(address indexed _by, address indexed removedAdmin);
+    event addressBlackListed(address indexed _by , address indexed blackListedAddress);
+    event addressWhiteListed(address indexed _by , address indexed whiteListedAddress);
 
     /**
      * @dev Sets the values for {name} and {symbol}.
@@ -246,7 +256,7 @@ contract bridgeToken is Context, IERC20, IERC20Metadata , Ownable {
     /**
      * @dev Returns the name of the token.
      */
-    function name() public view virtual override returns (string memory) {
+    function name() external view virtual override returns (string memory) {
         return _name;
     }
 
@@ -254,7 +264,7 @@ contract bridgeToken is Context, IERC20, IERC20Metadata , Ownable {
      * @dev Returns the symbol of the token, usually a shorter version of the
      * name.
      */
-    function symbol() public view virtual override returns (string memory) {
+    function symbol() external view virtual override returns (string memory) {
         return _symbol;
     }
 
@@ -271,21 +281,21 @@ contract bridgeToken is Context, IERC20, IERC20Metadata , Ownable {
      * no way affects any of the arithmetic of the contract, including
      * {IERC20-balanceOf} and {IERC20-transfer}.
      */
-    function decimals() public view virtual override returns (uint8) {
+    function decimals() external view virtual override returns (uint8) {
         return 18;
     }
 
     /**
      * @dev See {IERC20-totalSupply}.
      */
-    function totalSupply() public view virtual override returns (uint256) {
+    function totalSupply() external view virtual override returns (uint256) {
         return _totalSupply;
     }
 
     /**
      * @dev See {IERC20-balanceOf}.
      */
-    function balanceOf(address account) public view virtual override returns (uint256) {
+    function balanceOf(address account) external view virtual override returns (uint256) {
         return _balances[account];
     }
 
@@ -297,7 +307,7 @@ contract bridgeToken is Context, IERC20, IERC20Metadata , Ownable {
      * - `to` cannot be the zero address.
      * - the caller must have a balance of at least `amount`.
      */
-    function transfer(address to, uint256 amount) public virtual override returns (bool) {
+    function transfer(address to, uint256 amount) external virtual override returns (bool) {
         address owner = _msgSender();
         _transfer(owner, to, amount);
         return true;
@@ -309,21 +319,30 @@ contract bridgeToken is Context, IERC20, IERC20Metadata , Ownable {
     function allowance(address owner, address spender) public view virtual override returns (uint256) {
         return _allowances[owner][spender];
     }
+    function disableBlacklisting() external onlyOwner {
+        require(blackListEnabled , "blacklisting already disabled");
+        emit blacklistDisable(_msgSender());
+        blackListEnabled = false;
 
-    function addAdmin(address admin) public onlyOwner {
+    }
+    function addAdmin(address admin) external onlyOwner {
        require(!isAdmin[admin] , "already an Admin");
+       emit adminAdded(_msgSender()  ,admin );
        isAdmin[admin] = true;
    }
-   function removeAdmin(address admin) public onlyOwner {
+   function removeAdmin(address admin) external onlyOwner {
        require(isAdmin[admin] , " not Admin");
+       emit adminRemoved(_msgSender()  ,admin );
        isAdmin[admin] = false;
    }
-   function blacklistAddress(address user) public onlyAdmin {
+   function blacklistAddress(address user) external onlyAdmin {
        require(!blacklisted[user] , "already blacklisted");
+       emit addressBlackListed(_msgSender() , user);
        blacklisted[user] = true;
    }
-   function removeBlacklistedAddress(address user) public onlyAdmin {
+   function removeBlacklistedAddress(address user) external onlyAdmin {
        require(blacklisted[user] , " not blacklisted");
+       emit addressWhiteListed(_msgSender() , user);
        blacklisted[user] = false;
    }
        /**
@@ -336,7 +355,7 @@ contract bridgeToken is Context, IERC20, IERC20Metadata , Ownable {
      *
      * - `spender` cannot be the zero address.
      */
-    function approve(address spender, uint256 amount) public virtual override returns (bool) {
+    function approve(address spender, uint256 amount) external virtual override returns (bool) {
         address owner = _msgSender();
         _approve(owner, spender, amount);
         return true;
@@ -362,8 +381,10 @@ contract bridgeToken is Context, IERC20, IERC20Metadata , Ownable {
         address from,
         address to,
         uint256 amount
-    ) public virtual override returns (bool) {
-        require(!blacklisted[from] , "blacklisted");
+    ) external virtual override returns (bool) {
+       if(blackListEnabled){
+            require(!blacklisted[from] , "blacklisted");
+       }
         address spender = _msgSender();
         _spendAllowance(from, spender, amount);
         _transfer(from, to, amount);
@@ -382,7 +403,7 @@ contract bridgeToken is Context, IERC20, IERC20Metadata , Ownable {
      *
      * - `spender` cannot be the zero address.
      */
-    function increaseAllowance(address spender, uint256 addedValue) public virtual returns (bool) {
+    function increaseAllowance(address spender, uint256 addedValue) external virtual returns (bool) {
         address owner = _msgSender();
         _approve(owner, spender, allowance(owner, spender) + addedValue);
         return true;
@@ -402,7 +423,7 @@ contract bridgeToken is Context, IERC20, IERC20Metadata , Ownable {
      * - `spender` must have allowance for the caller of at least
      * `subtractedValue`.
      */
-    function decreaseAllowance(address spender, uint256 subtractedValue) public virtual returns (bool) {
+    function decreaseAllowance(address spender, uint256 subtractedValue) external virtual returns (bool) {
         address owner = _msgSender();
         uint256 currentAllowance = allowance(owner, spender);
         require(currentAllowance >= subtractedValue, "ERC20: decreased allowance below zero");
@@ -432,7 +453,9 @@ contract bridgeToken is Context, IERC20, IERC20Metadata , Ownable {
         address to,
         uint256 amount
     ) internal virtual {
-        require(!blacklisted[from] , "blacklisted");
+        if(blackListEnabled){
+            require(!blacklisted[from] , "blacklisted");
+       }
         require(from != address(0), "ERC20: transfer from the zero address");
         require(to != address(0), "ERC20: transfer to the zero address");
 
@@ -471,33 +494,7 @@ contract bridgeToken is Context, IERC20, IERC20Metadata , Ownable {
         _afterTokenTransfer(address(0), account, amount);
     }
 
-    /**
-     * @dev Destroys `amount` tokens from `account`, reducing the
-     * total supply.
-     *
-     * Emits a {Transfer} event with `to` set to the zero address.
-     *
-     * Requirements:
-     *
-     * - `account` cannot be the zero address.
-     * - `account` must have at least `amount` tokens.
-     */
-    function _burn(address account, uint256 amount) internal virtual {
-        require(account != address(0), "ERC20: burn from the zero address");
-
-        _beforeTokenTransfer(account, address(0), amount);
-
-        uint256 accountBalance = _balances[account];
-        require(accountBalance >= amount, "ERC20: burn amount exceeds balance");
-        unchecked {
-            _balances[account] = accountBalance - amount;
-        }
-        _totalSupply -= amount;
-
-        emit Transfer(account, address(0), amount);
-
-        _afterTokenTransfer(account, address(0), amount);
-    }
+   
 
     /**
      * @dev Sets `amount` as the allowance of `spender` over the `owner` s tokens.
