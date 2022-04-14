@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 // OpenZeppelin Contracts (last updated v4.5.0) (token/ERC20/ERC20.sol)
-pragma solidity ^0.8.0;
+pragma solidity 0.8.0;
 
 /**
  * @dev Interface of the ERC20 standard as defined in the EIP.
@@ -150,7 +150,7 @@ abstract contract Ownable is Context {
         return _owner;
     }
 
-   function oendingOwner() public view virtual returns (address) {
+   function pendingOwner() external view returns (address) {
         return _pendingOwner;
     }
     /**
